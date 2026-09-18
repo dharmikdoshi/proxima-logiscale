@@ -179,7 +179,7 @@ Steps to repeat it are under "Trying the PostgreSQL comparison" below.
 | Summary question again, typed differently | Cache | cache hit |
 
 The SQL is parsed into a tree and checked, not text-searched, because a search for "DELETE" is easy
-to get around. `tests/test_agent_tool.py` lists 34 queries it has to refuse, including seven that
+to get around. `tests/test_agent_tool.py` lists 35 queries it has to refuse, including eight that
 got through in a review and are now closed: dates that are computed, a second copy of the table with
 no date filter, the whole row selected by its alias, and `list()` packing millions of values into one
 row. When it refuses, it says why, so the model can fix the query and retry. It is a first layer. A
@@ -226,7 +226,7 @@ Needs [uv](https://docs.astral.sh/uv/). No Docker, no cloud account.
 
 About 35 minutes and 8 GB of disk. It repeats the runs reported here, the six layouts at 10M rows
 and then ten days at 5M rows a day, and rewrites the results block with your numbers.
-`uv run pytest` runs the 109 tests.
+`uv run pytest` runs the 110 tests.
 
 | Command | What it does |
 |---|---|

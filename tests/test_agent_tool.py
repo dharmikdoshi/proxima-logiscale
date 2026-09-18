@@ -68,6 +68,9 @@ def tool(tmp_path_factory):
     ("SELECT e FROM events e WHERE e.day = DATE '2026-06-01'", "SELECT \\*"),
     ("SELECT COLUMNS(*) FROM events WHERE day = DATE '2026-06-01'", "SELECT \\*"),
     # found in review: one row that holds millions of values
+    # found in review: the alias renames the columns, so "day" is really ingested_at
+    (("SELECT count(*) FROM events AS e(event_id, event_ts, day) "
+      "WHERE e.day BETWEEN DATE '2026-06-01' AND DATE '2026-06-02'"), "renaming a table's columns"),
     ("SELECT list(payload) FROM events WHERE day = DATE '2026-06-01'", "packs many rows"),
     ("SELECT string_agg(payload, ',') FROM events WHERE day = DATE '2026-06-01'", "packs many rows"),
 ])

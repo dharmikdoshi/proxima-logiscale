@@ -158,6 +158,10 @@ def check(sql: str):
     for table in tree.find_all(exp.Table):
         if not isinstance(table.this, exp.Identifier):
             raise Rejected("reading files or table functions directly is not allowed")
+        alias = table.args.get("alias")
+        if alias is not None and alias.args.get("columns"):
+            # "events AS e(a, b, day)" renames the columns, so "day" could be any column at all
+            raise Rejected("renaming a table's columns in its alias is not allowed")
         if table.db or table.catalog or table.name not in ALLOWED_TABLES | cte_names:
             raise Rejected(f"table '{table.sql()}' is not allowed, "
                            f"use one of: {', '.join(sorted(ALLOWED_TABLES))}")

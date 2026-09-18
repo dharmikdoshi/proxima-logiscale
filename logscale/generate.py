@@ -94,7 +94,7 @@ def events_glob(cfg: Config) -> str:
 def generate(cfg: Config, days: range | None = None, force: bool = False) -> None:
     if cfg.rows_per_day < 1:
         raise ValueError(f"{cfg.rows} rows is too less for {cfg.days} days")
-    _check_disk(cfg)
+    _check_disk(cfg, len(days or range(cfg.days)))
 
     con = connect(cfg.root / "tmp")
     con.execute(U_MACRO.format(seed=cfg.seed))
@@ -137,9 +137,10 @@ def _write_day(con, cfg: Config, day: int, force: bool) -> int:
     return 1
 
 
-def _check_disk(cfg: Config) -> None:
+def _check_disk(cfg: Config, days: int) -> None:
     # about 25 bytes per row after compression, I ask for double that to be safe
-    need = cfg.rows * 25 * 2
+    # only the days asked for. a per-day set has room for 90 days but may be making just 10
+    need = days * cfg.rows_per_day * 25 * 2
     cfg.root.mkdir(parents=True, exist_ok=True)
     free = shutil.disk_usage(cfg.root).free
     if free < need:
