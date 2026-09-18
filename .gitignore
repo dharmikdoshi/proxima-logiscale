@@ -3,8 +3,4 @@ data/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-GUIDE.md
-NOTES.md
-QA.md
-WALKTHROUGH.md
 results/partial/

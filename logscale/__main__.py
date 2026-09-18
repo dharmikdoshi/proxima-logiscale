@@ -33,8 +33,8 @@ def main() -> None:
     dates.add_argument("--from-date", help="first day of a range, YYYY-MM-DD")
     dates.add_argument("--to-date", help="last day of a range, YYYY-MM-DD")
 
-    sub.add_parser("all", help="run the full experiment in order and write the report (~10 min)")
-    sub.add_parser("growth", help="repeat the timings at 25M, 50M and 100M rows for the growth chart")
+    sub.add_parser("all", help="run the full experiment in order and write the report (~35 min)")
+    sub.add_parser("growth", help="repeat the timings at 25M, 50M and 100M rows for the growth table")
     sub.add_parser("generate", parents=[scale, dates],
                    help="play the devices: make synthetic events, one parquet file per day")
     sub.add_parser("ingest", parents=[scale, dates],
@@ -92,15 +92,15 @@ def make_config(rows: str = "10M", per_day: str | None = None) -> Config:
 
 
 def run_all() -> None:
-    """The whole experiment in one go. Kept small so it finishes in about ten minutes."""
+    """The whole experiment in one go, the same sizes the README reports. About 35 minutes."""
     main = make_config(rows="10M")
     for step in ("generate", "build", "bench", "agent-demo"):
         run(main, step)
-    # real daily volume: 2 days of 5M rows, the bad day and the one before it
+    # real daily volume: 10 days of 5M rows, ending on the bad day
     daily = make_config(per_day="5M")
-    two_days = range(daily.spike_day - 1, daily.spike_day + 1)
-    run(daily, "generate", days=two_days)
-    run(daily, "ingest", days=two_days)
+    ten_days = range(daily.spike_day - 9, daily.spike_day + 1)
+    run(daily, "generate", days=ten_days)
+    run(daily, "ingest", days=ten_days)
     run(daily, "build")
     run(daily, "bench", layouts=["single", "by_day", "sorted"])
     write_report()
@@ -127,7 +127,7 @@ def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial
     elif command == "bench":
         # if I picked only some layouts this is just a demo run, keep it away from the README numbers
         with track(cfg, command):
-            out = bench(cfg, layouts=layouts, out_dir=RESULTS_DIR / "partial" if partial else RESULTS_DIR)
+            out = bench(cfg, layouts=layouts, out_dir=RESULTS_DIR / "partial" if partial else None)
         print_results(out)
         print(f"\nsaved to {out}")
     elif command == "agent-demo":

@@ -1,7 +1,7 @@
 {
   "scale": "5M-per-day",
   "rows": 50000000,
-  "days": 90,
+  "days": 10,
   "machine": {
     "os": "Windows-11-10.0.26200-SP0",
     "cpu": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",

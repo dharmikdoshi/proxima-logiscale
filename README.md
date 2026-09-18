@@ -6,14 +6,14 @@
 > analytical and agent queries at that scale efficiently? Back it with experimental code.
 
 5M rows a day is about 58 rows a second. 1B rows over 90 days is about 130 a second. In compressed
-files that is tens of GB. So this is not a cluster problem, it is a "how do I lay the data out"
+files that is around 10 to 15 GB. So this is not a cluster problem, it is a "how do I lay the data out"
 problem. That is what I tested.
 
 ## Options I looked at
 
 | Option | Good at | Problem for this workload | What I measured |
 |---|---|---|---|
-| CSV files | Simple, it is how data arrives | Every question reads the whole file. Biggest on disk | 1,607 MB for 10M rows, about 4 s per question |
+| CSV files | Simple, it is how data arrives | Every question reads the whole file. Biggest on disk | 1,607 MB for 10M rows (127 MB per 5M-row day when gzipped), about 4 s per question |
 | Parquet files | Reads only the days and columns a question needs. Compresses well | Cannot edit one row. A bad day means rewriting that day's file | 173 MB for the same rows, 17 ms for a one-day question |
 | PostgreSQL | Finding one record by index. Data that gets edited | Reads whole rows to count one column. Slow to load, slower as days pile up | 82 to 188 s to load a day Parquet takes in 10 to 14 s. 2.9 s against 45 ms on the same question after 4 days |
 | Polars DataFrames | Extremely fast on the same Parquet files | Every query is DataFrame code. Moving to Athena later means rewriting each one as SQL. With SQL over Parquet there is nothing to rewrite | Not tried |
@@ -47,10 +47,10 @@ and is not part of the measurement. The 15 to 28 s is only the real job: raw fil
 | Way | Why I tried it | Verdict |
 |---|---|---|
 | Raw CSV | Baseline, it is how data arrives | Keep only as the untouched original |
-| One big Parquet file | Simplest Parquet setup | Fine when small. At 50M rows it was 3x slower than daily files, and fixing one day means rewriting everything |
+| One big Parquet file | Simplest Parquet setup | Fine when small. At 50M rows a one-day question was 2 to 3x slower than on daily files, full scans about the same. Fixing one day means rewriting everything |
 | One Parquet file per day | A question about one day should open one file | Good |
 | One file per day, sorted | Failures are about 6% of rows, so keep them together | **Chosen** |
-| Thousands of tiny files | What a streaming loader leaves behind | Avoid. Same data, about 30x slower |
+| Thousands of tiny files | What a streaming loader leaves behind | Avoid. Same data, 10 to 30x slower |
 | Summary tables | Known questions should not rescan raw events | For the repeated questions |
 
 ## Seven questions, and what each one tests
@@ -117,7 +117,7 @@ _Measured on: Windows-11-10.0.26200-SP0, 8 logical CPUs, DuckDB 1.5.5, Python 3.
 | 450 million, 90 days at 5M (estimate) | about 7 GB | about 5 s | about 167 MB, $0.83 per 1,000 | about the same |
 | 1 billion (estimate) | about 14 GB | about 12 s | about 371 MB, $1.85 per 1,000 | about the same |
 
-Straight-line estimates from the run above. They get replaced by real measurements when this moves from experiment to build, on the production stack. A question about one day does not grow with history at all, it only opens that day's file.
+Straight-line estimates from the run above, to be checked on the real stack. A question about one day does not grow with history, it only opens that day's file.
 
 #### Same check at 10x the rows (90 day sets)
 
@@ -140,25 +140,25 @@ Every table behind these numbers is in [RESULTS.md](RESULTS.md).
 
 ### Parquet against PostgreSQL, day by day
 
-Same cleaned rows into both. Postgres got one partition per day, three indexes, fresh statistics and
-memory settings tuned for the laptop. Same question after each day ("failures per day, over the days
-loaded so far"), answers matched every time. Numbers typed from my runs.
+Four days at 3M rows a day, the same cleaned rows into both. Postgres got one partition per day,
+three indexes, fresh statistics and memory settings tuned for the laptop. Same question after each
+day ("failures per day, over the days loaded so far"), and the answers matched every time.
 
-| Days in the question | Parquet, 5M rows a day | PostgreSQL, 3M rows a day |
+| Days loaded | Parquet | PostgreSQL |
 |---|---|---|
-| 1 | 14 ms | 184 ms |
-| 2 | | 929 ms |
-| 3 | | 517 ms |
-| 4 | 34 ms | 2,854 ms |
-| 7 | 66 ms | |
-| 10 | 80 ms | about 4 to 7 s (estimate) |
+| 1 | 28 ms | 184 ms |
+| 2 | 27 ms | 929 ms |
+| 3 | 37 ms | 517 ms |
+| 4 | 45 ms | 2,854 ms |
 
-Loading a day: Parquet 15 to 28 s for 5M rows. Postgres 82 to 188 s for 3M rows.
+Loading one day of 3M rows: Parquet 10 to 14 s, Postgres 82 to 188 s.
 
-Postgres was already an order of magnitude behind after four days, on smaller days, and getting
-worse with each day added. That answered "why not just Postgres", so I stopped there and spent the
-rest of the time on the option that was working. Postgres in Docker on Windows loses some disk
-speed and could be tuned further, so read it as "an order of magnitude", not the exact ratio.
+These are typed from my terminal, there is no results file behind them, so treat them as
+indicative. The setup is also unkind to Postgres: indexes existed before the load, no VACUUM, and
+Docker on Windows costs it disk speed. The 929 then 517 ms wobble is that kind of noise. A tuned
+Postgres would close part of the gap, not an order of magnitude. That was enough to answer "why not
+just Postgres", so I stopped there and spent the time on the option that was working. For scale:
+at 5M rows a day the same Parquet question took 14, 34, 66 and 80 ms over 1, 4, 7 and 10 days.
 Steps to repeat it are under "Trying the PostgreSQL comparison" below.
 
 ### Twelve SQL attempts on the agent tool
@@ -179,20 +179,23 @@ Steps to repeat it are under "Trying the PostgreSQL comparison" below.
 | Summary question again, typed differently | Cache | cache hit |
 
 The SQL is parsed into a tree and checked, not text-searched, because a search for "DELETE" is easy
-to get around. `tests/test_agent_tool.py` has 40+ attempts to sneak past it. Every refusal comes back
-as a sentence the model can act on.
+to get around. `tests/test_agent_tool.py` lists 34 queries it has to refuse, including seven that
+got through in a review and are now closed: dates that are computed, a second copy of the table with
+no date filter, the whole row selected by its alias, and `list()` packing millions of values into one
+row. When it refuses, it says why, so the model can fix the query and retry. It is a first layer. A
+read-only database role belongs underneath it.
 
 ## Why each decision
 
-- **Parquet over CSV.** About 9x smaller, and questions in ms instead of seconds.
+- **Parquet over CSV.** About 9x smaller than plain CSV, about 1.75x smaller than the gzipped CSV that arrives, and questions in ms instead of seconds.
 - **One file per day, not per hour.** A day is a good file size. Hourly files would be tiny, and tiny files were the slowest thing I measured.
-- **Daily files over one big file.** Same speed at 10M rows. At 50M rows daily files were 3x faster, and a bad day can be replaced alone.
+- **Daily files over one big file.** Same speed at 10M rows. At 50M rows one-day questions were 2 to 3x faster on daily files, full scans about equal. And a bad day can be replaced alone.
 - **Sorted inside each file.** Did nothing at 111K rows a day. At 5M rows a day it made most questions several times faster and cut the data read by 10x or more.
 - **Summary tables.** A few ms no matter how much raw data there is. They only answer planned questions, and unique counts cannot come from them.
-- **JSON fields asked about often become real columns.** Same question, about a tenth of the data read.
-- **Exact unique counts unless the window is huge.** The approximate count was anywhere from 0.6% to 14% off, depending on the window.
+- **JSON fields asked about often become real columns.** Same question, about 7x less data read, and up to 9x faster at real volume.
+- **Exact unique counts unless the window is huge.** The approximate count was anywhere from 0.6% to about 20% off across my runs. I have not dug into why it swings that much, so I do not trust it yet.
 - **Agent rules in code, not in the prompt.** Read only, approved tables, at most 31 days of raw events, row limit, scan budget, timeout.
-- **No embeddings for event rows.** Similarity search cannot count. Vectors are for text like runbooks, and pgvector is enough for that.
+- **No embeddings for event rows.** These are counting questions, and SQL does that. If runbooks or incident notes need searching later, pgvector would do.
 - **PostgreSQL stays, for what it is good at.** Summaries, lookups, anything edited.
 
 ## What I would build
@@ -210,9 +213,9 @@ as a sentence the model can act on.
 Wrong data: keep the raw file, re-clean that day, swap it in. Re-sent events are dropped by their id,
 that day's summary rows are refreshed, the day's version goes up.
 
-This needs watching after it ships: data read and p95 time per query, file sizes, how fresh the
-summaries are, cache hit rate, how often the agent is refused, and its accuracy on a fixed set of
-questions. Once a month, give the most expensive questions a summary or a better sort order.
+After it ships I would keep an eye on data read and p95 per query, file sizes, how fresh the
+summaries are, and how often the agent gets refused. Once a month, look at the most expensive
+questions and give them a summary or a better sort order.
 
 ## How to run
 
@@ -221,8 +224,9 @@ Needs [uv](https://docs.astral.sh/uv/). No Docker, no cloud account.
     uv sync
     uv run python -m logscale all
 
-About ten minutes. It makes the data, runs the tests above at a small size, and rewrites the results
-block in this file. `uv run pytest` runs the 100 tests.
+About 35 minutes and 8 GB of disk. It repeats the runs reported here, the six layouts at 10M rows
+and then ten days at 5M rows a day, and rewrites the results block with your numbers.
+`uv run pytest` runs the 109 tests.
 
 | Command | What it does |
 |---|---|
@@ -259,6 +263,9 @@ Then one day into both, and the same question to both:
 into Postgres takes two to three minutes, so be patient on `pg-load`. Repeat the three middle
 commands with other dates to add more days.
 
+`pg-bench --rows 10M` runs all seven questions on Postgres and saves them under `results/`. It
+needs the 10M set loaded first (`pg-load --rows 10M --from-date 2026-06-01 --to-date 2026-08-29`).
+
 To look inside with TablePlus or DBeaver: host `localhost`, port `5433`, database, user and
 password all `logscale`.
 
@@ -268,8 +275,10 @@ password all `logscale`.
 ## Notes
 
 Everything under Results is measured: DuckDB on Parquet files, and PostgreSQL in Docker, all on my
-laptop. Your milliseconds will differ from mine. The data is synthetic, and "data read" is worked out
-from the statistics Parquet keeps about itself, not measured at the disk.
+laptop. Timings are warm and single-user, so a few ms either way is noise, and your milliseconds
+will differ from mine. The data is synthetic. "Data read" is worked out from the statistics Parquet
+keeps about itself plus the columns I listed for each question in `queries.py`, not measured at the
+disk.
 
 The 90 day and 1B row numbers are estimates. I ran 10 real days at 5M rows a day and stretched the
 line from there.

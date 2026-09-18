@@ -46,7 +46,7 @@ def print_table(headers: list, rows: list) -> None:
 
 
 def write_report(readme: Path = Path("README.md")) -> None:
-    """Every number in the README comes from the json files in results/, I never type one by hand.
+    """The results block in the README is filled from the json files in results/, not typed.
     Only the part between the two markers is replaced, my own text around it stays."""
     main, daily = _load("bench", MAIN), _load("bench", DAILY)
     growth = sorted((json.loads(p.read_text()) for p in RESULTS.glob("bench_*.json")),
@@ -145,9 +145,8 @@ def _estimates(bench):
     return ("#### From the measured days to the 90 day goal\n\n"
             + _table(["Rows", "Disk, sorted files", "Scan every day", "Data read by that scan",
                       "Same answer from the summary"], rows)
-            + "\n\nStraight-line estimates from the run above. They get replaced by real measurements "
-              "when this moves from experiment to build, on the production stack. A question about one "
-              "day does not grow with history at all, it only opens that day's file.")
+            + "\n\nStraight-line estimates from the run above, to be checked on the real stack. A "
+              "question about one day does not grow with history, it only opens that day's file.")
 
 
 def _growth_short(benches):

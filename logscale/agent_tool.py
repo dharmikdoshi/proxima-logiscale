@@ -20,6 +20,7 @@ MAX_DAYS = 31          # widest day window allowed on the big table
 MAX_ROWS = 1000        # every row that goes back costs the llm tokens
 SCAN_BUDGET_MB = 10    # sized for the 10M test data. on athena this would be a workgroup limit
 TIMEOUT_SECONDS = 10
+MAX_RESULT_KB = 256    # a row limit alone is not enough, one row can hold a huge list
 CACHE_SIZE = 256       # answers kept in memory. redis would do this job in a real system
 USE_ROLLUP = "for totals and rates use rollup_daily_health or rollup_daily_errors"
 
@@ -68,13 +69,14 @@ class AgentTool:
     def _scan_mb(self, tree) -> float:
         if not any(t.name == BIG_TABLE for t in tree.find_all(exp.Table)):
             return 0.0   # summary tables are under 1 MB, nothing to budget
-        filters = {}
+        filters, windows = {}, []
         for select in _selects_on_big_table(tree):
-            filters["day"] = _day_window(select)
+            windows += _day_windows(select)
             for cond in _conditions(select):
                 if (isinstance(cond, exp.EQ) and isinstance(cond.left, exp.Column)
                         and isinstance(cond.right, exp.Literal)):
                     filters[cond.left.name] = (cond.right.this, cond.right.this)
+        filters["day"] = (min(w[0] for w in windows), max(w[1] for w in windows))
         columns = tuple({c.name for c in tree.find_all(exp.Column)})
         return estimate_scan(self.row_groups, Query("", "", "", columns, filters))[0] / 1e6
 
@@ -91,6 +93,10 @@ class AgentTool:
             raise Rejected(f"the engine could not run it: {err}") from None
         finally:
             timer.cancel()
+        size_kb = len(str(rows)) / 1000
+        if size_kb > MAX_RESULT_KB:
+            raise Rejected(f"result is about {size_kb:,.0f} KB, the cap is {MAX_RESULT_KB} KB. "
+                           f"pick fewer columns or aggregate more")
         return [d[0] for d in result.description], rows, (time.perf_counter() - begin) * 1000
 
 
@@ -160,13 +166,23 @@ def check(sql: str):
     if unknown:
         raise Rejected(f"function '{unknown.name}' is not allowed")
 
+    # these pack any number of rows into one value, so the row limit would mean nothing
+    packer = tree.find(exp.ArrayAgg, exp.GroupConcat)
+    if packer:
+        raise Rejected(f"{packer.key} is not allowed, it packs many rows into one value")
+
     for select in _selects_on_big_table(tree):
-        if any(isinstance(e, exp.Star) or (isinstance(e, exp.Column) and e.is_star)
-               for e in select.expressions):
+        # SELECT *, COLUMNS(*), and "SELECT e FROM events e" (the whole row by its alias) are all
+        # the same thing: every column, including the fat json one
+        aliases = {t.alias_or_name for t in _sources(select)}
+        whole_row = any(c.name in aliases and not c.table for c in select.find_all(exp.Column))
+        if whole_row or select.find(exp.Columns) or any(
+                isinstance(e, exp.Star) or (isinstance(e, exp.Column) and e.is_star)
+                for e in select.expressions):
             raise Rejected(f"SELECT * on {BIG_TABLE} is not allowed, name the columns you need")
-        first, last = _day_window(select)
-        if (last - first).days + 1 > MAX_DAYS:
-            raise Rejected(f"day window on {BIG_TABLE} is wider than {MAX_DAYS} days. {USE_ROLLUP}")
+        for first, last in _day_windows(select):
+            if (last - first).days + 1 > MAX_DAYS:
+                raise Rejected(f"day window on {BIG_TABLE} is wider than {MAX_DAYS} days. {USE_ROLLUP}")
 
     limit = tree.args.get("limit")
     if limit is None or not limit.expression.is_int or int(limit.expression.this) > MAX_ROWS:
@@ -193,9 +209,16 @@ def _conditions(select) -> list:
         else [where.this] if where else []
 
 
-def _day_window(select) -> tuple[date, date]:
+def _day_windows(select) -> list[tuple[date, date]]:
+    # every copy of the big table needs its own day filter. in "events e JOIN events f" a filter
+    # on e says nothing about f, and f would be read for all 90 days
+    copies = [t.alias_or_name for t in _sources(select) if t.name == BIG_TABLE]
+    # a bare "day" (no alias in front) can only be trusted when there is a single copy
+    return [_day_window(select, {name, ""} if len(copies) == 1 else {name}) for name in copies]
+
+
+def _day_window(select, big_names: set) -> tuple[date, date]:
     # in a join, a day filter on the small table (r.day) must not count as a filter on the big one
-    big_names = {"", *(t.alias_or_name for t in _sources(select) if t.name == BIG_TABLE)}
     first = last = None
     for cond in _conditions(select):
         column = cond.this if isinstance(cond, exp.Between) else getattr(cond, "left", None)
@@ -217,8 +240,12 @@ def _day_window(select) -> tuple[date, date]:
 
 
 def _as_date(node) -> date:
-    literal = node if isinstance(node, exp.Literal) else node.find(exp.Literal)
+    # only '2026-06-11' or DATE '2026-06-11'. anything computed (DATE 'x' - INTERVAL ..., CASE,
+    # current_date) can mean any range at all, so I do not try to work it out, I refuse it
+    literal = node.this if isinstance(node, exp.Cast) else node
     try:
+        if not (isinstance(literal, exp.Literal) and literal.is_string):
+            raise ValueError
         return date.fromisoformat(literal.this)
-    except (AttributeError, ValueError):
+    except ValueError:
         raise Rejected("day filter has to use plain dates, like DATE '2026-06-11'") from None

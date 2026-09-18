@@ -56,6 +56,20 @@ def tool(tmp_path_factory):
      "wider than 31 days"),
     (f"SELECT count(*) FROM rollup_daily_health r JOIN events e ON e.day = r.day WHERE r.{WEEK}",
      "needs a day filter"),
+    # found in review: dates that are computed, so the real range is anything
+    (("SELECT count(*) FROM events WHERE day BETWEEN DATE '2026-06-01' - INTERVAL 5000 DAY "
+      "AND DATE '2026-06-07' + INTERVAL 5000 DAY"), "plain dates"),
+    (("SELECT count(*) FROM events WHERE day >= DATE '2026-06-01' AND day <= CASE WHEN true "
+      "THEN DATE '2026-08-29' ELSE DATE '2026-06-02' END"), "plain dates"),
+    # found in review: a second copy of the big table with no filter of its own
+    (("SELECT count(*) FROM events e JOIN events f ON e.device_id = f.device_id "
+      "WHERE e.day = DATE '2026-06-01'"), "needs a day filter"),
+    # found in review: every column without writing a star
+    ("SELECT e FROM events e WHERE e.day = DATE '2026-06-01'", "SELECT \\*"),
+    ("SELECT COLUMNS(*) FROM events WHERE day = DATE '2026-06-01'", "SELECT \\*"),
+    # found in review: one row that holds millions of values
+    ("SELECT list(payload) FROM events WHERE day = DATE '2026-06-01'", "packs many rows"),
+    ("SELECT string_agg(payload, ',') FROM events WHERE day = DATE '2026-06-01'", "packs many rows"),
 ])
 def test_bad_sql_is_rejected_with_a_useful_reason(sql, reason):
     with pytest.raises(Rejected, match=reason):
@@ -69,6 +83,9 @@ def test_bad_sql_is_rejected_with_a_useful_reason(sql, reason):
     "SELECT * FROM error_codes",                                         # small table, star is fine
     f"WITH f AS (SELECT device_id FROM events WHERE {WEEK}) SELECT count(*) FROM f",
     f"SELECT payload->>'conn', approx_count_distinct(device_id) FROM events WHERE {WEEK} GROUP BY 1",
+    # a self join is fine when both copies carry their own day filter
+    ("SELECT count(*) FROM events e JOIN events f ON e.device_id = f.device_id "
+     "WHERE e.day = DATE '2026-06-01' AND f.day = DATE '2026-06-02'"),
 ])
 def test_reasonable_sql_passes(sql):
     check(sql)
@@ -109,6 +126,12 @@ def test_over_budget_query_is_refused_before_it_runs(tool, monkeypatch):
     monkeypatch.setattr(agent_tool, "SCAN_BUDGET_MB", 0.001)
     answer = tool.run(f"SELECT device_id, payload FROM events WHERE {WEEK}")
     assert answer.status == "rejected" and "budget" in answer.note
+
+
+def test_huge_result_is_refused_even_when_the_row_count_is_small(tool, monkeypatch):
+    monkeypatch.setattr(agent_tool, "MAX_RESULT_KB", 1)
+    answer = tool.run(f"SELECT device_id, payload FROM events WHERE {WEEK} LIMIT 500")
+    assert answer.status == "rejected" and "cap" in answer.note
 
 
 def test_slow_query_is_stopped(tool, monkeypatch):
