@@ -1,0 +1,285 @@
+{
+  "scale": "100M",
+  "rows": 99999990,
+  "days": 90,
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",
+    "logical_cpus": 8,
+    "python": "3.12.2",
+    "duckdb": "1.5.5"
+  },
+  "note": "timings are warm (one unmeasured run first). mb_scanned is an estimate from parquet metadata, see _estimate_scan in bench.py",
+  "questions": {
+    "failures_one_day": "How many events failed on one given day?",
+    "top_errors_week": "Top 10 error codes of the week, with their meaning (a join)",
+    "devices_hit_by_error": "How many different devices hit error 1042 this week?",
+    "fail_rate_by_model_os": "Which model + os combos fail the most, over all days?",
+    "one_device_history": "Last 100 events of one device in the past 30 days",
+    "failures_by_conn_json": "Failures per connection type, digging inside the json blob",
+    "failures_by_conn_column": "Same question, but conn is a proper column now"
+  },
+  "sizes": [
+    {
+      "layout": "single",
+      "files": 1,
+      "mb": 1776.1,
+      "bytes_per_row": 17.8
+    },
+    {
+      "layout": "by_day",
+      "files": 90,
+      "mb": 1774.9,
+      "bytes_per_row": 17.7
+    },
+    {
+      "layout": "sorted",
+      "files": 90,
+      "mb": 1555.3,
+      "bytes_per_row": 15.6
+    },
+    {
+      "layout": "rollup_daily_health",
+      "files": 1,
+      "mb": 0.2,
+      "bytes_per_row": 0.0
+    },
+    {
+      "layout": "rollup_daily_errors",
+      "files": 1,
+      "mb": 0.1,
+      "bytes_per_row": 0.0
+    }
+  ],
+  "results": [
+    {
+      "layout": "single",
+      "query": "failures_one_day",
+      "median_ms": 111.2,
+      "slowest_ms": 160.8,
+      "runs": 7,
+      "mb_scanned": 0.07,
+      "files_touched": 1
+    },
+    {
+      "layout": "single",
+      "query": "top_errors_week",
+      "median_ms": 176.4,
+      "slowest_ms": 201.7,
+      "runs": 7,
+      "mb_scanned": 1.37,
+      "files_touched": 1
+    },
+    {
+      "layout": "single",
+      "query": "devices_hit_by_error",
+      "median_ms": 227.6,
+      "slowest_ms": 269.2,
+      "runs": 7,
+      "mb_scanned": 26.46,
+      "files_touched": 1
+    },
+    {
+      "layout": "single",
+      "query": "fail_rate_by_model_os",
+      "median_ms": 1275.5,
+      "slowest_ms": 1936.4,
+      "runs": 7,
+      "mb_scanned": 85.13,
+      "files_touched": 1
+    },
+    {
+      "layout": "single",
+      "query": "one_device_history",
+      "median_ms": 1392.8,
+      "slowest_ms": 1415.2,
+      "runs": 7,
+      "mb_scanned": 268.91,
+      "files_touched": 1
+    },
+    {
+      "layout": "single",
+      "query": "failures_by_conn_json",
+      "median_ms": 226.4,
+      "slowest_ms": 281.8,
+      "runs": 7,
+      "mb_scanned": 11.1,
+      "files_touched": 1
+    },
+    {
+      "layout": "by_day",
+      "query": "failures_one_day",
+      "median_ms": 25.8,
+      "slowest_ms": 29.8,
+      "runs": 7,
+      "mb_scanned": 0.06,
+      "files_touched": 1
+    },
+    {
+      "layout": "by_day",
+      "query": "top_errors_week",
+      "median_ms": 89.6,
+      "slowest_ms": 101.1,
+      "runs": 7,
+      "mb_scanned": 1.34,
+      "files_touched": 7
+    },
+    {
+      "layout": "by_day",
+      "query": "devices_hit_by_error",
+      "median_ms": 119.6,
+      "slowest_ms": 124.5,
+      "runs": 7,
+      "mb_scanned": 25.74,
+      "files_touched": 7
+    },
+    {
+      "layout": "by_day",
+      "query": "fail_rate_by_model_os",
+      "median_ms": 1496.3,
+      "slowest_ms": 1537.6,
+      "runs": 7,
+      "mb_scanned": 85.16,
+      "files_touched": 90
+    },
+    {
+      "layout": "by_day",
+      "query": "one_device_history",
+      "median_ms": 1042.9,
+      "slowest_ms": 1117.1,
+      "runs": 7,
+      "mb_scanned": 267.61,
+      "files_touched": 30
+    },
+    {
+      "layout": "by_day",
+      "query": "failures_by_conn_json",
+      "median_ms": 120.4,
+      "slowest_ms": 128.4,
+      "runs": 7,
+      "mb_scanned": 10.81,
+      "files_touched": 7
+    },
+    {
+      "layout": "sorted",
+      "query": "failures_one_day",
+      "median_ms": 22.5,
+      "slowest_ms": 33.2,
+      "runs": 7,
+      "mb_scanned": 0.0,
+      "files_touched": 1
+    },
+    {
+      "layout": "sorted",
+      "query": "top_errors_week",
+      "median_ms": 46.8,
+      "slowest_ms": 54.4,
+      "runs": 7,
+      "mb_scanned": 0.01,
+      "files_touched": 7
+    },
+    {
+      "layout": "sorted",
+      "query": "devices_hit_by_error",
+      "median_ms": 34.1,
+      "slowest_ms": 39.2,
+      "runs": 7,
+      "mb_scanned": 2.74,
+      "files_touched": 7
+    },
+    {
+      "layout": "sorted",
+      "query": "fail_rate_by_model_os",
+      "median_ms": 1298.1,
+      "slowest_ms": 1445.3,
+      "runs": 7,
+      "mb_scanned": 37.34,
+      "files_touched": 90
+    },
+    {
+      "layout": "sorted",
+      "query": "one_device_history",
+      "median_ms": 214.0,
+      "slowest_ms": 235.2,
+      "runs": 7,
+      "mb_scanned": 42.29,
+      "files_touched": 30
+    },
+    {
+      "layout": "sorted",
+      "query": "failures_by_conn_json",
+      "median_ms": 99.3,
+      "slowest_ms": 105.2,
+      "runs": 7,
+      "mb_scanned": 1.19,
+      "files_touched": 7
+    },
+    {
+      "layout": "sorted",
+      "query": "failures_by_conn_column",
+      "median_ms": 30.1,
+      "slowest_ms": 34.4,
+      "runs": 7,
+      "mb_scanned": 0.16,
+      "files_touched": 7
+    },
+    {
+      "layout": "rollup",
+      "query": "failures_one_day",
+      "median_ms": 2.4,
+      "slowest_ms": 5.4,
+      "runs": 7,
+      "mb_scanned": 0.18,
+      "files_touched": 1
+    },
+    {
+      "layout": "rollup",
+      "query": "top_errors_week",
+      "median_ms": 6.6,
+      "slowest_ms": 9.5,
+      "runs": 7,
+      "mb_scanned": 0.09,
+      "files_touched": 1
+    },
+    {
+      "layout": "rollup",
+      "query": "fail_rate_by_model_os",
+      "median_ms": 7.3,
+      "slowest_ms": 10.8,
+      "runs": 7,
+      "mb_scanned": 0.18,
+      "files_touched": 1
+    }
+  ],
+  "distinct_counts": {
+    "exact_vs_approx": [
+      {
+        "window": "all days",
+        "exact": 500000,
+        "approx": 505811,
+        "error_pct": 1.16,
+        "exact_median_ms": 6482.7,
+        "approx_median_ms": 1643.8
+      },
+      {
+        "window": "one week",
+        "exact": 499886,
+        "approx": 505811,
+        "error_pct": 1.19,
+        "exact_median_ms": 364.0,
+        "approx_median_ms": 148.7
+      },
+      {
+        "window": "one day",
+        "exact": 398123,
+        "approx": 368961,
+        "error_pct": 7.32,
+        "exact_median_ms": 91.0,
+        "approx_median_ms": 55.6
+      }
+    ],
+    "devices_with_a_failure_this_week": 247177,
+    "same_thing_by_adding_daily_counts": 368801,
+    "overcount_pct": 49.2
+  }
+}

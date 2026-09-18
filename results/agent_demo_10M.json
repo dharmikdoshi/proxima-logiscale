@@ -1,0 +1,117 @@
+[
+  {
+    "tried": "tries to delete",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "only SELECT is allowed, this is a DELETE",
+    "found": []
+  },
+  {
+    "tried": "two statements in one",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "send exactly one statement",
+    "found": []
+  },
+  {
+    "tried": "reads a file from disk",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "reading files or table functions directly is not allowed",
+    "found": []
+  },
+  {
+    "tried": "lazy select star, no dates",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "SELECT * on events is not allowed, name the columns you need",
+    "found": []
+  },
+  {
+    "tried": "day filter with no end",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "query on events needs a day filter with a start and an end, like day BETWEEN DATE '2026-06-01' AND DATE '2026-06-07'. for totals and rates use rollup_daily_health or rollup_daily_errors",
+    "found": []
+  },
+  {
+    "tried": "all 90 days of raw events",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "day window on events is wider than 31 days. for totals and rates use rollup_daily_health or rollup_daily_errors",
+    "found": []
+  },
+  {
+    "tried": "a month of the fat json column",
+    "verdict": "rejected",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "would read about 15 MB, budget is 10 MB. ask for fewer days or fewer columns, for totals and rates use rollup_daily_health or rollup_daily_errors",
+    "found": []
+  },
+  {
+    "tried": "weekly failures, from summary",
+    "verdict": "ok",
+    "ms": 15.9,
+    "mb": 0.0,
+    "note": "LIMIT 1000 added",
+    "found": []
+  },
+  {
+    "tried": "weekly failures, from raw events",
+    "verdict": "ok",
+    "ms": 25.7,
+    "mb": 0.0,
+    "note": "LIMIT 1000 added",
+    "found": []
+  },
+  {
+    "tried": "what broke on the bad day",
+    "verdict": "ok",
+    "ms": 52.7,
+    "mb": 0.0,
+    "note": "",
+    "found": [
+      [
+        "KR-20",
+        "win11",
+        "update download failed",
+        823
+      ],
+      [
+        "DX-100",
+        "win11",
+        "connection timeout",
+        48
+      ],
+      [
+        "DX-100",
+        "macos15",
+        "connection timeout",
+        35
+      ]
+    ]
+  },
+  {
+    "tried": "one device, forgot the limit",
+    "verdict": "ok",
+    "ms": 77.7,
+    "mb": 5.1,
+    "note": "LIMIT 1000 added",
+    "found": []
+  },
+  {
+    "tried": "weekly failures from summary, again",
+    "verdict": "cache hit",
+    "ms": 0.0,
+    "mb": 0.0,
+    "note": "LIMIT 1000 added",
+    "found": []
+  }
+]
