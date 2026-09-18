@@ -135,6 +135,8 @@ def add_views(con, cfg: Config, names: list[str], layout: str = "by_day") -> Non
                       else f"read_parquet('{files}', hive_partitioning = true)")
         else:
             file = cfg.root / ERROR_CODES_FILE if name == "error_codes" else rollup_file(cfg, name)
+            if not file.exists():
+                continue   # not built yet (build makes these), the view can wait
             reader = f"read_parquet('{file.as_posix()}')"
         con.execute(f"CREATE VIEW {name} AS SELECT * FROM {reader}")
 

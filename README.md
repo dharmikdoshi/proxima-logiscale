@@ -210,6 +210,7 @@ Dates are `YYYY-MM-DD`. Every step skips work that is already done, so a stopped
 | `build` | Stores the same rows the six ways |
 | `bench` | Asks the seven questions of each, 7 runs each |
 | `agent-demo` | Twelve good and bad SQL attempts through the guarded tool |
+| `ask "SELECT ..."` | Your own SQL through the same guardrails |
 | `growth` | Repeats the timings at 25M, 50M and 100M rows (about 30 min) |
 | `report` | Rewrites the numbers in this file and in RESULTS.md |
 | `peek`, `browse` | Look at the data in the terminal, or in TablePlus / DBeaver |

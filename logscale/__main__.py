@@ -2,7 +2,7 @@ import argparse
 import logging
 from dataclasses import replace
 
-from .agent_tool import demo
+from .agent_tool import AgentTool, demo
 from .bench import RESULTS_DIR, bench, print_results
 from .browse import make_browse_file
 from .config import Config, parse_rows
@@ -10,7 +10,7 @@ from .dates import day_range, parse_date
 from .generate import generate, peek, summary
 from .ingest import ingest, print_ingest
 from .layouts import LAYOUTS, build, print_sizes
-from .report import save, write_report
+from .report import print_table, save, write_report
 from .runlog import track
 
 GROWTH_SIZES = ["25M", "50M", "100M"]
@@ -46,6 +46,8 @@ def main() -> None:
     bch.add_argument("--layouts", nargs="+", choices=list(LAYOUTS), help="default is all of them")
     sub.add_parser("agent-demo", parents=[scale],
                    help="show how the agent query tool treats good and bad sql")
+    ask = sub.add_parser("ask", parents=[scale], help="run your own sql through the agent's guardrails")
+    ask.add_argument("sql", help="the question, in sql, in quotes")
     sub.add_parser("report", help="put the numbers from results/ into README.md")
     sub.add_parser("peek", parents=[scale], help="print the first 10 rows of the data")
     sub.add_parser("browse", parents=[scale],
@@ -72,7 +74,7 @@ def main() -> None:
             picked = [parse_date(text) if text else None for text in typed]
             layouts = getattr(args, "layouts", None)
             run(cfg, args.command, days=day_range(cfg, *picked), force=args.force,
-                layouts=layouts, partial=bool(layouts))
+                layouts=layouts, partial=bool(layouts), sql=getattr(args, "sql", None))
     except ValueError as err:
         parser.error(str(err))
 
@@ -98,7 +100,8 @@ def run_all() -> None:
     print("\nall done. numbers are in results/, README.md has been updated")
 
 
-def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial=False) -> None:
+def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial=False,
+        sql=None) -> None:
     if command == "generate":
         with track(cfg, command):
             generate(cfg, days=days, force=force)
@@ -122,6 +125,12 @@ def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial
         print(f"\nsaved to {out}")
     elif command == "agent-demo":
         save("agent_demo", cfg, demo(cfg))
+    elif command == "ask":
+        answer = AgentTool(cfg).run(sql)
+        print(f"\n{answer.status}: {answer.note}" if answer.note else f"\n{answer.status}")
+        if answer.rows:
+            print(f"{len(answer.rows)} rows, {answer.ms:.1f} ms, about {answer.mb_scanned:.2f} MB read\n")
+            print_table(answer.columns, answer.rows[:20])
     elif command == "peek":
         peek(cfg)
     elif command == "browse":
