@@ -20,9 +20,17 @@ VERDICTS = {"csv": "Keep only as the untouched original",
 ONE_DAY, ALL_DAYS = "failures_one_day", "fail_rate_by_model_os"
 
 
+def results_dir(cfg: Config) -> Path:
+    # only the sizes the README is built from land in results/. anything else is a try-out run
+    # and goes to results/partial/, which git ignores
+    official = cfg.label in (MAIN, DAILY) or cfg.days == 90
+    return RESULTS if official else RESULTS / "partial"
+
+
 def save(name: str, cfg: Config, data) -> Path:
-    RESULTS.mkdir(exist_ok=True)
-    path = RESULTS / f"{name}_{cfg.label}.json"
+    folder = results_dir(cfg)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{name}_{cfg.label}.json"
     path.write_text(json.dumps(data, indent=2))
     return path
 

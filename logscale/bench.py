@@ -14,7 +14,7 @@ from .config import Config
 from .db import connect
 from .layouts import ERROR_CODES_FILE, LAYOUTS, ROLLUPS, rollup_file, sizes
 from .queries import Query, queries
-from .report import print_table
+from .report import print_table, results_dir
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,8 @@ CSV_RUNS = 3   # csv is slow and steady, 3 runs is enough and saves many minutes
 RESULTS_DIR = Path("results")
 
 
-def bench(cfg: Config, layouts: list[str] | None = None, out_dir: Path = RESULTS_DIR) -> Path:
+def bench(cfg: Config, layouts: list[str] | None = None, out_dir: Path | None = None) -> Path:
+    out_dir = out_dir or results_dir(cfg)
     results = []
     for layout in layouts or LAYOUTS:
         files = cfg.root / LAYOUTS[layout]
