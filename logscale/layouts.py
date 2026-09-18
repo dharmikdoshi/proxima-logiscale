@@ -48,6 +48,7 @@ TINY_FILES_PER_DAY = 50
 
 # csv and tiny files are only there to show what not to do, no point building them at big sizes
 BASELINE_MAX_ROWS = 10_000_000
+ONE_FILE_MAX_ROWS = 100_000_000
 
 PARQUET = "(FORMAT PARQUET, COMPRESSION ZSTD)"
 
@@ -68,12 +69,16 @@ def build(cfg: Config, force: bool = False) -> None:
     write_atomic(con, f"COPY ({lookup}) TO '{{out}}' (FORMAT PARQUET)",
                  cfg.root / ERROR_CODES_FILE, force)
 
+    # the summaries are always rebuilt. they are cheap, and they have to cover every day that
+    # has arrived so far, not only the days that were there on the first build
     for name, sql in ROLLUPS.items():
         write_atomic(con, f"COPY ({sql.format(src=all_days)}) TO '{{out}}' (FORMAT PARQUET)",
-                     rollup_file(cfg, name), force)
+                     rollup_file(cfg, name), force=True)
 
-    write_atomic(con, f"COPY (SELECT * FROM {all_days}) TO '{{out}}' {PARQUET}",
-                 cfg.root / "single" / "events.parquet", force)
+    # one giant file is only there to compare against, pointless (and very slow) at big sizes
+    if cfg.rows_present() <= ONE_FILE_MAX_ROWS:
+        write_atomic(con, f"COPY (SELECT * FROM {all_days}) TO '{{out}}' {PARQUET}",
+                     cfg.root / "single" / "events.parquet", force)
     if with_baselines:
         write_atomic(con, f"COPY (SELECT * FROM {all_days}) TO '{{out}}' (FORMAT CSV, HEADER)",
                      cfg.root / "csv" / "events.csv", force)

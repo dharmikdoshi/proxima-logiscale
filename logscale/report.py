@@ -59,9 +59,9 @@ def write_report(readme: Path = Path("README.md")) -> None:
 
     # (section, the data it needs). if the data is not there yet the section is simply left out.
     # the README gets the few numbers that matter, RESULTS.md gets every table
-    everything = (main, ingest, agent)
-    short = [(_machine, main), (_scorecard, main), (_sorting, daily), (_growth_short, growth),
-             (_facts, everything if all(everything) else None)]
+    everything = (main, daily, ingest, agent)
+    short = [(_machine, main), (_scorecard, main), (_real_volume, daily), (_estimates, daily),
+             (_growth_short, growth), (_facts, everything if all(everything) else None)]
     full = [(_machine, main), (_sizes, main), (_timings, main), (_daily_volume, daily),
             (_ingest, ingest), (_distinct, main), (_agent, agent), (_growth, growth),
             (_money, biggest)]
@@ -111,14 +111,43 @@ def _scorecard(bench):
                       "Verdict"], rows))
 
 
-def _sorting(bench):
+def _real_volume(bench):
+    """The run that matters most: real daily volume, days arriving one after another."""
     cell = _cells(bench)
-    rows = [[bench["questions"][q]]
-            + [f"{cell[q, lay]['median_ms']:,} ms, {cell[q, lay]['mb_scanned'] or 'under 0.01'} MB read"
-               for lay in ("by_day", "sorted")]
-            for q in ("devices_hit_by_error", "one_device_history", ONE_DAY)]
-    return ("#### Does sorting matter? At real volume, 5M rows a day\n\n"
-            + _table(["Question", "One file per day", "One file per day, sorted"], rows))
+
+    def show(query, layout):
+        r = cell.get((query, layout))
+        return f"{r['median_ms']:,} ms, {r['mb_scanned'] or 'under 0.01'} MB" if r else ""
+
+    rows = [[text, show(q, "by_day"), show(q, "sorted"), show(q, "rollup")]
+            for q, text in bench["questions"].items()]
+    return (f"#### Real volume: {bench['rows'] // 5_000_000} days at 5M rows a day "
+            f"({bench['rows'] / 1e6:,.0f} million rows)\n\n"
+            + _table(["Question (time, data read)", "One file per day", "One file per day, sorted",
+                      "Summary table"], rows))
+
+
+def _estimates(bench):
+    """Stretch the real-volume run to the 90 day goal. Straight lines, and labelled as estimates."""
+    cell, measured = _cells(bench), bench["rows"]
+    sorted_mb = next(s["mb"] for s in bench["sizes"] if s["layout"] == "sorted")
+    scan, summary = cell[ALL_DAYS, "sorted"], cell[ALL_DAYS, "rollup"]
+    rows = [[f"{measured / 1e6:,.0f} million (measured)", f"{sorted_mb / 1000:,.1f} GB",
+             f"{scan['median_ms'] / 1000:,.1f} s", f"{scan['mb_scanned']:,.0f} MB",
+             f"{summary['median_ms']} ms"]]
+    for target, label in ((450_000_000, "450 million, 90 days at 5M"), (1_000_000_000, "1 billion")):
+        times = target / measured
+        scan_mb = scan["mb_scanned"] * times
+        rows.append([f"{label} (estimate)", f"about {sorted_mb * times / 1000:,.0f} GB",
+                     f"about {scan['median_ms'] * times / 1000:,.0f} s",
+                     f"about {scan_mb:,.0f} MB, ${scan_mb / 1e6 * ATHENA_USD_PER_TB * 1000:,.2f} per 1,000",
+                     "about the same"])
+    return ("#### From the measured days to the 90 day goal\n\n"
+            + _table(["Rows", "Disk, sorted files", "Scan every day", "Data read by that scan",
+                      "Same answer from the summary"], rows)
+            + "\n\nStraight-line estimates from the run above. They get replaced by real measurements "
+              "when this moves from experiment to build, on the production stack. A question about one "
+              "day does not grow with history at all, it only opens that day's file.")
 
 
 def _growth_short(benches):
@@ -128,50 +157,44 @@ def _growth_short(benches):
         rows.append([f"{b['rows'] / 1e6:,.0f} million", f"{cell[ALL_DAYS, 'sorted']['median_ms']:,} ms",
                      f"{cell[ONE_DAY, 'sorted']['median_ms']:,} ms",
                      f"{cell[ALL_DAYS, 'rollup']['median_ms']:,} ms"])
-    big = benches[-1]
-    if big["rows"] < 900_000_000:
-        # no 1B run on disk yet, so this line is worked out from the trend, and I say so
-        cell, times = _cells(big), 1_000_000_000 / big["rows"]
-        sorted_mb = next(s["mb"] for s in big["sizes"] if s["layout"] == "sorted")
-        scan_mb = cell[ALL_DAYS, "sorted"]["mb_scanned"] * times
-        rows.append(["1 billion (projected, not measured)",
-                     f"about {cell[ALL_DAYS, 'sorted']['median_ms'] * times / 1000:,.0f} s",
-                     "tens of ms", "unchanged"])
-        note = (f"\n\nThe last line is a straight-line projection from the measured runs. At that size "
-                f"the sorted files would take about {sorted_mb * times / 1000:,.0f} GB, and the 90 day "
-                f"scan would read about {scan_mb:,.0f} MB, around "
-                f"${scan_mb / 1e6 * ATHENA_USD_PER_TB * 1000:,.2f} per 1,000 such queries on a "
-                f"pay-per-scan engine. This is why the agent is not allowed to scan all 90 days.")
-    else:
-        note = ""
-    return ("#### What happens when the data grows\n\n"
-            + _table(["Rows", "Scan all 90 days", "Ask about one day", "Ask the summary table"], rows)
-            + note + "\n\n![growth](results/growth.png)")
+    return ("#### Same check at 10x the rows (90 day sets)\n\n"
+            + _table(["Rows", "Scan all 90 days", "Ask about one day", "Ask the summary table"], rows))
 
 
 def _facts(data):
-    main, ingest, agent = data
-    cell, d = _cells(main), main["distinct_counts"]
+    main, daily, ingest, agent = data
+    cell = _cells(main)
     blob, column = cell["failures_by_conn_json", "sorted"], cell["failures_by_conn_column", "sorted"]
     seconds = [r["seconds"] for r in ingest]
-    errors = ", ".join(f"{w['error_pct']}% over {w['window']}" for w in d["exact_vs_approx"])
+    first = ingest[0]
     refused = sum(r["verdict"] == "rejected" for r in agent)
     model, os_name, why, count = next(r["found"] for r in agent if r["found"])[0]
-    return f"""#### Other measured facts
+    small, big = main["distinct_counts"], daily["distinct_counts"]
 
-- The daily job turns a {ingest[0]['rows_in']:,} row raw `csv.gz` into a cleaned, sorted file in \
-**{min(seconds)} to {max(seconds)} seconds** on a laptop, and dropped \
-{ingest[0]['duplicates_dropped']:,} re-sent events on the way.
-- A question that digs inside the JSON text: {blob['median_ms']} ms, {blob['mb_scanned']} MB read. \
-Same question on a proper column: **{column['median_ms']} ms, {column['mb_scanned']} MB read**.
-- Approximate unique counts were off by {errors}. Fine for a long window, not for a short one.
-- Adding up 7 daily unique counts gives {d['same_thing_by_adding_daily_counts']:,}. The true weekly \
-number is {d['devices_with_a_failure_this_week']:,}. That is {d['overcount_pct']}% too high, so \
-unique counts cannot come from daily summaries.
-- The agent tool refused **{refused} of {len(agent)}** query attempts, each with a reason, and found \
-the planted incident: **{model} on {os_name}, "{why}", {count:,} failures**.
+    def errors(counts):
+        return ", ".join(f"{w['error_pct']}% over {w['window']}" for w in counts["exact_vs_approx"])
 
-Every table behind these numbers is in [RESULTS.md](RESULTS.md)."""
+    facts = [
+        (f"The daily job, {len(ingest)} days in a row: {first['rows_in']:,} rows of raw `csv.gz` in "
+         f"({first['csv_gz_mb']} MB), {first['rows_out']:,} cleaned rows out ({first['parquet_mb']} MB), "
+         f"{first['duplicates_dropped']:,} re-sent events dropped, "
+         f"**{min(seconds)} to {max(seconds)} seconds per day** on a laptop."),
+        (f"A question that digs inside the JSON text: {blob['median_ms']} ms, {blob['mb_scanned']} MB "
+         f"read. Same question on a proper column: **{column['median_ms']} ms, "
+         f"{column['mb_scanned']} MB read**."),
+        (f"Approximate unique counts: off by {errors(small)} on the 10M set, and by {errors(big)} at "
+         f"5M rows a day. The error depends on how many different devices fall in the window, so it "
+         f"has to be checked on the real engine before it is trusted."),
+        (f"Daily unique counts cannot be added up. On the 10M set that gives "
+         f"{small['same_thing_by_adding_daily_counts']:,} against a true "
+         f"{small['devices_with_a_failure_this_week']:,} ({small['overcount_pct']}% too high). At 5M "
+         f"rows a day it gives {big['same_thing_by_adding_daily_counts']:,} against "
+         f"{big['devices_with_a_failure_this_week']:,} (**{big['overcount_pct']}% too high**)."),
+        (f"The agent tool refused **{refused} of {len(agent)}** query attempts, each with a reason, "
+         f"and found the planted incident: **{model} on {os_name}, \"{why}\", {count:,} failures**."),
+    ]
+    return ("#### Other measured facts\n\n" + "\n".join("- " + fact for fact in facts)
+            + "\n\nEvery table behind these numbers is in [RESULTS.md](RESULTS.md).")
 
 
 def _machine(bench):
@@ -238,33 +261,9 @@ def _growth(benches):
              "all 90 days, summary table": ("fail_rate_by_model_os", "rollup")}
     series = {name: [next(r["median_ms"] for r in b["results"] if (r["query"], r["layout"]) == key)
                      for b in benches] for name, key in lines.items()}
-    _chart([b["rows"] / 1e6 for b in benches], series)
     rows = [[f"{b['rows']:,}"] + [series[name][i] for name in lines] for i, b in enumerate(benches)]
     return ("#### How the time grows when the data grows (ms)\n\n"
-            + _table(["rows", *lines], rows) + "\n\n![growth](results/growth.png)")
-
-
-def _chart(million_rows: list, series: dict) -> None:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import matplotlib.ticker
-
-    fig, ax = plt.subplots(figsize=(7, 3.6))
-    for name, values in series.items():
-        ax.plot(million_rows, values, marker="o", linewidth=1.5)
-        ax.annotate(name, (million_rows[-1], values[-1]), xytext=(6, 0),
-                    textcoords="offset points", va="center", fontsize=8)
-    # log scale, otherwise the two fast lines lie flat on top of each other at the bottom
-    ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
-    ax.set_xlabel("rows in the dataset (millions)")
-    ax.set_ylabel("median time (ms, log scale)")
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.set_xlim(right=million_rows[-1] * 1.45)
-    fig.tight_layout()
-    fig.savefig(RESULTS / "growth.png", dpi=150)
-    plt.close(fig)
+            + _table(["rows", *lines], rows))
 
 
 def _money(bench):

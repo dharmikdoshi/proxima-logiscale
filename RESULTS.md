@@ -44,19 +44,27 @@ _Measured on: Windows-11-10.0.26200-SP0, 8 logical CPUs, DuckDB 1.5.5, Python 3.
 
 | question | by_day ms | sorted ms | by_day MB | sorted MB |
 |---|---|---|---|---|
-| How many events failed on one given day? | 43.1 | 12.0 | 0.26 | 0.0 |
-| Top 10 error codes of the week, with their meaning (a join) | 126.2 | 53.5 | 1.84 | 0.0 |
-| How many different devices hit error 1042 this week? | 180.4 | 24.6 | 33.18 | 0.76 |
-| Which model + os combos fail the most, over all days? | 191.8 | 184.5 | 8.51 | 3.7 |
-| Last 100 events of one device in the past 30 days | 311.7 | 65.5 | 80.32 | 7.91 |
-| Failures per connection type, digging inside the json blob | 163.6 | 131.0 | 13.76 | 1.02 |
+| How many events failed on one given day? | 19.7 | 9.9 | 0.26 | 0.0 |
+| Top 10 error codes of the week, with their meaning (a join) | 239.9 | 67.8 | 5.99 | 0.01 |
+| How many different devices hit error 1042 this week? | 366.7 | 33.1 | 115.81 | 2.73 |
+| Which model + os combos fail the most, over all days? | 587.5 | 603.6 | 42.41 | 18.53 |
+| Last 100 events of one device in the past 30 days | 1185.5 | 210.1 | 401.06 | 37.48 |
+| Failures per connection type, digging inside the json blob | 371.3 | 253.6 | 48.57 | 3.41 |
 
 #### The daily job: raw csv.gz in, cleaned parquet out
 
 | date | rows in | duplicates dropped | rows out | seconds | csv gz mb | parquet mb |
 |---|---|---|---|---|---|---|
-| 2026-07-30 | 5,005,000 | 5,000 | 5,000,000 | 39.1 | 128.2 | 73.1 |
-| 2026-07-31 | 5,005,000 | 5,000 | 5,000,000 | 23.7 | 126.8 | 72.7 |
+| 2026-07-22 | 5,005,000 | 5,000 | 5,000,000 | 15.4 | 127.4 | 72.5 |
+| 2026-07-23 | 5,005,000 | 5,000 | 5,000,000 | 15.0 | 127.9 | 72.9 |
+| 2026-07-24 | 5,005,000 | 5,000 | 5,000,000 | 15.9 | 126.9 | 72.5 |
+| 2026-07-25 | 5,005,000 | 5,000 | 5,000,000 | 15.0 | 127.8 | 72.8 |
+| 2026-07-26 | 5,005,000 | 5,000 | 5,000,000 | 14.8 | 127.4 | 72.6 |
+| 2026-07-27 | 5,005,000 | 5,000 | 5,000,000 | 14.6 | 126.6 | 71.0 |
+| 2026-07-28 | 5,005,000 | 5,000 | 5,000,000 | 27.9 | 127.1 | 71.9 |
+| 2026-07-29 | 5,005,000 | 5,000 | 5,000,000 | 17.7 | 127.2 | 72.1 |
+| 2026-07-30 | 5,005,000 | 5,000 | 5,000,000 | 24.7 | 128.2 | 73.1 |
+| 2026-07-31 | 5,005,000 | 5,000 | 5,000,000 | 19.8 | 126.8 | 72.7 |
 
 #### Unique devices: exact vs approximate
 
@@ -95,8 +103,6 @@ Answer to "what broke on the bad day": KR-20 + win11, update download failed: 82
 | 24,999,930 | 367.9 | 21.8 | 7.2 |
 | 49,999,950 | 613.5 | 33.2 | 7.8 |
 | 99,999,990 | 1298.1 | 22.5 | 7.3 |
-
-![growth](results/growth.png)
 
 #### What the MB would cost on a pay-per-scan engine (99,999,990 rows, sorted)
 

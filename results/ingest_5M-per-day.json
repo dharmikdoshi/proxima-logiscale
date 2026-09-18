@@ -1,11 +1,91 @@
 [
   {
+    "date": "2026-07-22",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 15.4,
+    "rows_per_second": 324831,
+    "csv_gz_mb": 127.4,
+    "parquet_mb": 72.5
+  },
+  {
+    "date": "2026-07-23",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 15.0,
+    "rows_per_second": 333584,
+    "csv_gz_mb": 127.9,
+    "parquet_mb": 72.9
+  },
+  {
+    "date": "2026-07-24",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 15.9,
+    "rows_per_second": 314217,
+    "csv_gz_mb": 126.9,
+    "parquet_mb": 72.5
+  },
+  {
+    "date": "2026-07-25",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 15.0,
+    "rows_per_second": 332635,
+    "csv_gz_mb": 127.8,
+    "parquet_mb": 72.8
+  },
+  {
+    "date": "2026-07-26",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 14.8,
+    "rows_per_second": 337976,
+    "csv_gz_mb": 127.4,
+    "parquet_mb": 72.6
+  },
+  {
+    "date": "2026-07-27",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 14.6,
+    "rows_per_second": 342531,
+    "csv_gz_mb": 126.6,
+    "parquet_mb": 71.0
+  },
+  {
+    "date": "2026-07-28",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 27.9,
+    "rows_per_second": 179492,
+    "csv_gz_mb": 127.1,
+    "parquet_mb": 71.9
+  },
+  {
+    "date": "2026-07-29",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 17.7,
+    "rows_per_second": 282193,
+    "csv_gz_mb": 127.2,
+    "parquet_mb": 72.1
+  },
+  {
     "date": "2026-07-30",
     "rows_in": 5005000,
     "duplicates_dropped": 5000,
     "rows_out": 5000000,
-    "seconds": 39.1,
-    "rows_per_second": 128094,
+    "seconds": 24.7,
+    "rows_per_second": 202863,
     "csv_gz_mb": 128.2,
     "parquet_mb": 73.1
   },
@@ -14,8 +94,8 @@
     "rows_in": 5005000,
     "duplicates_dropped": 5000,
     "rows_out": 5000000,
-    "seconds": 23.7,
-    "rows_per_second": 211186,
+    "seconds": 19.8,
+    "rows_per_second": 253081,
     "csv_gz_mb": 126.8,
     "parquet_mb": 72.7
   }
