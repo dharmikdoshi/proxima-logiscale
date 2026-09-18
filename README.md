@@ -92,9 +92,9 @@ _Measured on: Windows-11-10.0.26200-SP0, 8 logical CPUs, DuckDB 1.5.5, Python 3.
 
 | Question | One file per day | One file per day, sorted |
 |---|---|---|
-| How many different devices hit error 1042 this week? | 125.9 ms, 33.36 MB read | 15.7 ms, 1.16 MB read |
-| Last 100 events of one device in the past 30 days | 301.9 ms, 80.55 MB read | 50.9 ms, 8.3 MB read |
-| How many events failed on one given day? | 26.9 ms, 0.39 MB read | 9.0 ms, under 0.01 MB read |
+| How many different devices hit error 1042 this week? | 180.4 ms, 33.18 MB read | 24.6 ms, 0.76 MB read |
+| Last 100 events of one device in the past 30 days | 311.7 ms, 80.32 MB read | 65.5 ms, 7.91 MB read |
+| How many events failed on one given day? | 43.1 ms, 0.26 MB read | 12.0 ms, under 0.01 MB read |
 
 #### What happens when the data grows
 
@@ -110,7 +110,7 @@ The last line is a straight-line projection from the measured runs. At that size
 
 #### Other measured facts
 
-- The daily job turns a 5,005,000 row raw `csv.gz` into a cleaned, sorted file in **16.9 to 20.8 seconds** on a laptop, and dropped 5,000 re-sent events on the way.
+- The daily job turns a 5,005,000 row raw `csv.gz` into a cleaned, sorted file in **23.7 to 39.1 seconds** on a laptop, and dropped 5,000 re-sent events on the way.
 - A question that digs inside the JSON text: 27.0 ms, 1.04 MB read. Same question on a proper column: **18.5 ms, 0.14 MB read**.
 - Approximate unique counts were off by 1.16% over all days, 7.65% over one week, 14.34% over one day. Fine for a long window, not for a short one.
 - Adding up 7 daily unique counts gives 41,262. The true weekly number is 38,373. That is 7.5% too high, so unique counts cannot come from daily summaries.
@@ -158,13 +158,49 @@ the heavy lifting, and this Python does none.
 
 | Option | Why not |
 |---|---|
-| PostgreSQL for everything | Row storage reads whole rows to count one column, needs far more disk, and cannot have an index for every question an agent invents. It stays in the design for summaries and edited data. Not measured here, it is the next thing I would test |
+| PostgreSQL for everything | Measured, see "Tried against PostgreSQL" below. Row storage reads whole rows to count one column and cannot have an index for every question an agent invents. It stays in the design for summaries, lookups and edited data |
 | Spark / Glue | A few hundred MB a day does not need a cluster |
 | ClickHouse | Very good, but a server to run all day. Worth it only when sub-second answers under heavy load are a measured need |
 | Elasticsearch / OpenSearch | Built for text search. These rows are structured |
 | Kafka / Kinesis streams | The volume is far below where they earn their keep |
 | Polars instead of DuckDB | Same speed class. I stayed with plain SQL because that is what an agent writes and what Athena runs |
 | A vector database for the rows | Similarity search cannot count |
+
+## Tried against PostgreSQL, day by day
+
+The same cleaned rows went into both a sorted Parquet file per day and a PostgreSQL 16 table
+(one partition per day, three sensible indexes, statistics refreshed, memory settings tuned for the
+laptop). Same question to both after each day, with `ask --both`. Four days of 3M rows each, on my
+laptop, numbers typed from that run. Answers matched every time.
+
+| | Sorted Parquet file | PostgreSQL | Gap |
+|---|---|---|---|
+| Taking one day of 3M rows in | 10 to 14 s | 82 to 188 s | 8 to 13x |
+| "Failures per day", 1 day loaded | 28 ms | 184 ms | 7x |
+| "Failures per day", 2 days loaded | 27 ms | 929 ms | 35x |
+| "Failures per day", 3 days loaded | 37 ms | 517 ms | 14x |
+| "Failures per day", 4 days loaded | 45 ms | 2,854 ms | 64x |
+
+The file side barely moves as days are added, the table side climbs. Postgres inside Docker on
+Windows loses some disk speed, and an expert could tune it further, so read the gap as "an order of
+magnitude", not the exact number. Repeat it yourself: `docker compose up -d`, `uv sync --group pg`,
+then `pg-load` and `ask --both` per date.
+
+## Cheat sheet: what works for what
+
+| Need | Use | Not |
+|---|---|---|
+| Keep a billion append-only events cheaply | One sorted Parquet file per day, on object storage | One big table, one big file, or thousands of small files |
+| Count, top-N, compare over a date range | A columnar engine over those files (Athena, DuckDB) | A row store scanning whole rows |
+| The same question asked every day by many people | Small summary tables in PostgreSQL | Re-scanning the raw events each time |
+| Find one device's history, edit a record, track jobs | PostgreSQL with an index | Parquet files |
+| A field inside a JSON blob that gets asked about a lot | Pull it out into a real column during the daily clean | `payload->>'field'` on every query |
+| "How many different devices", short window | Exact count on the files | The approximate count (up to 14% off here) |
+| "How many different devices", whole history | Approximate count, checked on the real engine first | Adding up daily unique counts (7.5% too high here) |
+| Data that arrived wrong | Keep the raw file, re-clean that day, swap it in | Editing rows in place |
+| An agent that writes its own SQL | One guarded tool: read only, approved tables, bounded dates, row limit, scan budget, timeout | Direct access to the engine, or rules only in the prompt |
+| Same answer asked twice | A cache keyed on the cleaned-up SQL plus the day versions | No cache, or a cache that never expires |
+| Text like runbooks and past incidents | pgvector, small corpus | Embedding the event rows |
 
 ## What I would build for real
 
@@ -200,13 +236,16 @@ The diagrams are in [docs/design.html](docs/design.html).
 
 ## Single steps
 
-All as `uv run python -m logscale <command>`. Sizes are `--rows 10M` (total) or `--per-day 5M`.
-Dates are `YYYY-MM-DD`. Every step skips work that is already done, so a stopped run just continues.
+All as `uv run python -m logscale <command>`. Sizes are `--rows 10M` (a whole 90 day set) or
+`--per-day 5M` (a day-by-day set, folder `5M-per-day`). `--date YYYY-MM-DD` picks the day. The
+window is 2026-06-01 to 2026-08-29 and the bad day is 2026-07-31. Every step skips work that is already done, so a stopped run just continues.
 
 | Command | What it does |
 |---|---|
 | `generate` | Fake devices. Same seed gives the same data, on any machine |
-| `ingest --date 2026-06-11` | The daily job: raw `csv.gz` in, cleaned Parquet out, timed |
+| `ingest --per-day 5M --date 2026-07-31` | The daily job: raw `csv.gz` in, cleaned Parquet out, timed |
+| `pg-load --per-day 5M --date 2026-07-31` | Same cleaned day into PostgreSQL (needs `docker compose up -d`) |
+| `ask --both "SELECT ..."` | Same question to both engines, timings side by side |
 | `build` | Stores the same rows the six ways |
 | `bench` | Asks the seven questions of each, 7 runs each |
 | `agent-demo` | Twelve good and bad SQL attempts through the guarded tool |

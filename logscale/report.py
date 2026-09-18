@@ -5,7 +5,7 @@ from .config import Config
 
 RESULTS = Path("results")
 START, END = "<!-- results:start -->", "<!-- results:end -->"
-MAIN, DAILY = "10M", "10M-2d"   # 10M = every layout compared, 10M-2d = real daily volume (5M a day)
+MAIN, DAILY = "10M", "5M-per-day"   # 10M = every layout compared, 5M-per-day = real daily volume
 ATHENA_USD_PER_TB, ATHENA_MIN_MB = 5, 10
 
 # the code uses short names, someone reading the README should not have to learn them
@@ -23,7 +23,7 @@ ONE_DAY, ALL_DAYS = "failures_one_day", "fail_rate_by_model_os"
 def results_dir(cfg: Config) -> Path:
     # only the sizes the README is built from land in results/. anything else is a try-out run
     # and goes to results/partial/, which git ignores
-    official = cfg.label in (MAIN, DAILY) or cfg.days == 90
+    official = cfg.label in (MAIN, DAILY) or not cfg.per_day
     return RESULTS if official else RESULTS / "partial"
 
 
@@ -52,7 +52,7 @@ def write_report(readme: Path = Path("README.md")) -> None:
     growth = sorted((json.loads(p.read_text()) for p in RESULTS.glob("bench_*.json")),
                     key=lambda b: b["rows"])
     # the growth table is the 90 day sets from the main size upwards. a quick 1M test run must not sneak in
-    growth = [b for b in growth if b["days"] == 90 and main and b["rows"] >= main["rows"]]
+    growth = [b for b in growth if "per-day" not in b["scale"] and main and b["rows"] >= main["rows"]]
     ingest, agent = _load("ingest", DAILY), _load("agent_demo", MAIN)
     growth = growth if len(growth) > 1 else None
     biggest = growth[-1] if growth else None

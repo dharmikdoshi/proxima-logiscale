@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2026-07-30",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 39.1,
+    "rows_per_second": 128094,
+    "csv_gz_mb": 128.2,
+    "parquet_mb": 73.1
+  },
+  {
+    "date": "2026-07-31",
+    "rows_in": 5005000,
+    "duplicates_dropped": 5000,
+    "rows_out": 5000000,
+    "seconds": 23.7,
+    "rows_per_second": 211186,
+    "csv_gz_mb": 126.8,
+    "parquet_mb": 72.7
+  }
+]

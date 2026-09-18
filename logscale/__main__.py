@@ -10,6 +10,7 @@ from .dates import day_range, parse_date
 from .generate import generate, peek, summary
 from .ingest import ingest, print_ingest
 from .layouts import LAYOUTS, build, print_sizes
+from .pg import ask_both, pg_bench, pg_load
 from .report import print_table, save, write_report
 from .runlog import track
 
@@ -24,8 +25,7 @@ def main() -> None:
     # all commands need to know which data size I mean, so these flags are shared
     scale = argparse.ArgumentParser(add_help=False)
     scale.add_argument("--rows", default="10M", help="total rows, like 1M, 10M, 100M (default 10M)")
-    scale.add_argument("--per-day", help="rows per day, like 5M. total becomes per-day x days")
-    scale.add_argument("--days", type=int, default=90)
+    scale.add_argument("--per-day", help="rows per day, like 5M, when you work day by day")
     scale.add_argument("--force", action="store_true", help="redo work that is already done")
 
     dates = argparse.ArgumentParser(add_help=False)
@@ -48,6 +48,10 @@ def main() -> None:
                    help="show how the agent query tool treats good and bad sql")
     ask = sub.add_parser("ask", parents=[scale], help="run your own sql through the agent's guardrails")
     ask.add_argument("sql", help="the question, in sql, in quotes")
+    ask.add_argument("--both", action="store_true", help="also run it on postgres, timings side by side")
+    sub.add_parser("pg-load", parents=[scale, dates],
+                   help="copy the cleaned day(s) into postgres (docker compose up -d first)")
+    sub.add_parser("pg-bench", parents=[scale], help="the seven questions against postgres")
     sub.add_parser("report", help="put the numbers from results/ into README.md")
     sub.add_parser("peek", parents=[scale], help="print the first 10 rows of the data")
     sub.add_parser("browse", parents=[scale],
@@ -69,21 +73,22 @@ def main() -> None:
             write_report()
             print("README.md updated from results/")
         else:
-            cfg = make_config(args.rows, args.per_day, args.days)
+            cfg = make_config(args.rows, args.per_day)
             typed = [getattr(args, name, None) for name in ("date", "from_date", "to_date")]
             picked = [parse_date(text) if text else None for text in typed]
             layouts = getattr(args, "layouts", None)
             run(cfg, args.command, days=day_range(cfg, *picked), force=args.force,
-                layouts=layouts, partial=bool(layouts), sql=getattr(args, "sql", None))
+                layouts=layouts, partial=bool(layouts), sql=getattr(args, "sql", None),
+                both=getattr(args, "both", False))
     except ValueError as err:
         parser.error(str(err))
 
 
-def make_config(rows: str = "10M", per_day: str | None = None, days: int = 90) -> Config:
-    total = parse_rows(per_day) * days if per_day else parse_rows(rows)
-    cfg = replace(Config(), rows=total, days=days)
-    # if I only make a few days, the bad day (day 60) would never exist, so move it to the last day
-    return replace(cfg, spike_day=days - 1) if cfg.spike_day >= days else cfg
+def make_config(rows: str = "10M", per_day: str | None = None) -> Config:
+    # the window is always 90 days. a per-day size names the folder after the daily number
+    if per_day:
+        return replace(Config(), rows=parse_rows(per_day) * 90, per_day=parse_rows(per_day))
+    return replace(Config(), rows=parse_rows(rows))
 
 
 def run_all() -> None:
@@ -91,9 +96,11 @@ def run_all() -> None:
     main = make_config(rows="10M")
     for step in ("generate", "build", "bench", "agent-demo"):
         run(main, step)
-    daily = make_config(per_day="5M", days=2)   # real daily volume, 2 days of it
-    run(daily, "generate")
-    run(daily, "ingest", days=range(daily.days))
+    # real daily volume: 2 days of 5M rows, the bad day and the one before it
+    daily = make_config(per_day="5M")
+    two_days = range(daily.spike_day - 1, daily.spike_day + 1)
+    run(daily, "generate", days=two_days)
+    run(daily, "ingest", days=two_days)
     run(daily, "build")
     run(daily, "bench", layouts=["single", "by_day", "sorted"])
     write_report()
@@ -101,7 +108,7 @@ def run_all() -> None:
 
 
 def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial=False,
-        sql=None) -> None:
+        sql=None, both=False) -> None:
     if command == "generate":
         with track(cfg, command):
             generate(cfg, days=days, force=force)
@@ -125,12 +132,25 @@ def run(cfg: Config, command: str, days=None, force=False, layouts=None, partial
         print(f"\nsaved to {out}")
     elif command == "agent-demo":
         save("agent_demo", cfg, demo(cfg))
+    elif command == "ask" and both:
+        ask_both(cfg, sql)
     elif command == "ask":
         answer = AgentTool(cfg).run(sql)
         print(f"\n{answer.status}: {answer.note}" if answer.note else f"\n{answer.status}")
         if answer.rows:
             print(f"{len(answer.rows)} rows, {answer.ms:.1f} ms, about {answer.mb_scanned:.2f} MB read\n")
             print_table(answer.columns, answer.rows[:20])
+    elif command == "pg-load":
+        if days is None:
+            raise ValueError("say which day(s) to load, with --date or --from-date / --to-date")
+        with track(cfg, command):
+            report = pg_load(cfg, days)
+        print()
+        print_table(["date", "rows", "seconds", "rows/sec"], [list(r.values()) for r in report])
+    elif command == "pg-bench":
+        with track(cfg, command):
+            out = pg_bench(cfg)
+        print(f"saved to {out}")
     elif command == "peek":
         peek(cfg)
     elif command == "browse":

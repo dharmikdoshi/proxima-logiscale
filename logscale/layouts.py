@@ -110,7 +110,7 @@ def write_atomic(con, sql: str, final: Path, force: bool) -> None:
 
 
 def sizes(cfg: Config) -> list[dict]:
-    rows = cfg.rows_per_day * cfg.days
+    rows = cfg.rows_present()
     table = []
     patterns = LAYOUTS | {name: f"rollups/{name}.parquet" for name in ROLLUPS}
     for name, pattern in patterns.items():

@@ -15,7 +15,8 @@ EVENT_TYPES = ["heartbeat", "connect", "sync", "update", "pair", "disconnect"]
 @dataclass(frozen=True)
 class Config:
     rows: int = 10_000_000
-    days: int = 90
+    days: int = 90            # the window. always 90 here, it only changes in tests
+    per_day: int = 0          # set when the size was given per day, only for the folder name
     seed: int = 7
     start: date = date(2026, 6, 1)
     devices: int = 500_000
@@ -40,12 +41,8 @@ class Config:
 
     @property
     def label(self) -> str:
-        name = str(self.rows)
-        for size, suffix in ((1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")):
-            if self.rows >= size and self.rows % size == 0:
-                name = f"{self.rows // size}{suffix}"
-                break
-        # 10M over 90 days and 10M over 2 days are not the same data, give them different names
+        # "10M" when the total was given, "5M-per-day" when the daily size was given
+        name = _short(self.per_day) + "-per-day" if self.per_day else _short(self.rows)
         return name if self.days == 90 else f"{name}-{self.days}d"
 
     @property
@@ -56,6 +53,10 @@ class Config:
     def day_date(self, day: int) -> date:
         return self.start + timedelta(days=day)
 
+    def rows_present(self) -> int:
+        # a per-day dataset may only have a few of its 90 days made, count what is really there
+        return self.rows_per_day * len(list((self.root / "by_day").glob("day=*")))
+
     def window(self, days: int) -> tuple[date, date]:
         # the last N days ending on the bad day. all my test questions look at this stretch
         return self.day_date(max(0, self.spike_day - days + 1)), self.day_date(self.spike_day)
@@ -63,6 +64,13 @@ class Config:
     def window_sql(self, days: int) -> str:
         first, last = self.window(days)
         return f"day BETWEEN DATE '{first}' AND DATE '{last}'"
+
+
+def _short(n: int) -> str:
+    for size, suffix in ((1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")):
+        if n >= size and n % size == 0:
+            return f"{n // size}{suffix}"
+    return str(n)
 
 
 def parse_rows(text: str) -> int:

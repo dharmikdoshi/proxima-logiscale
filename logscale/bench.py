@@ -60,7 +60,7 @@ def bench(cfg: Config, layouts: list[str] | None = None, out_dir: Path | None = 
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"bench_{cfg.label}.json"
     out.write_text(json.dumps({
-        "scale": cfg.label, "rows": cfg.rows_per_day * cfg.days, "days": cfg.days,
+        "scale": cfg.label, "rows": cfg.rows_present(), "days": cfg.days,
         "machine": {"os": platform.platform(), "cpu": platform.processor(),
                     "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                     "duckdb": duckdb.__version__},

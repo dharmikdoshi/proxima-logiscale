@@ -51,11 +51,11 @@ def queries(cfg: Config) -> list[Query]:
 
         Query("fail_rate_by_model_os", "Which model + os combos fail the most, over all days?",
               """SELECT device_model, os_version, count(*) AS events,
-                        round(100.0 * count(*) FILTER (status = 'fail') / count(*), 2) AS fail_pct
+                        round(100.0 * count(*) FILTER (WHERE status = 'fail') / count(*), 2) AS fail_pct
                  FROM events GROUP BY 1, 2 ORDER BY fail_pct DESC, 1, 2 LIMIT 10""",
               columns=("device_model", "os_version", "status"),
               rollup_sql="""SELECT device_model, os_version, sum(events) AS events,
-                                   round(100.0 * sum(events) FILTER (status = 'fail')
+                                   round(100.0 * sum(events) FILTER (WHERE status = 'fail')
                                          / sum(events), 2) AS fail_pct
                             FROM rollup_daily_health
                             GROUP BY 1, 2 ORDER BY fail_pct DESC, 1, 2 LIMIT 10"""),

@@ -1,0 +1,22 @@
+# optional: only for the "why not just postgres" comparison. the main experiment needs no docker.
+#   docker compose up -d      start it
+#   docker compose down -v    stop it and throw the data away
+services:
+  postgres:
+    image: postgres:16
+    container_name: logscale-postgres
+    environment:
+      POSTGRES_USER: logscale
+      POSTGRES_PASSWORD: logscale
+      POSTGRES_DB: logscale
+    ports:
+      - "5433:5432"
+    shm_size: 1g
+    # a fair setup for an 8 GB laptop: some memory for caching and sorting, parallel workers on
+    command: >
+      postgres -c shared_buffers=512MB -c work_mem=64MB -c maintenance_work_mem=256MB
+               -c max_parallel_workers_per_gather=4 -c random_page_cost=1.1
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

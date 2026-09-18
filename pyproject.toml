@@ -11,6 +11,7 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
+pg = ["psycopg[binary]>=3.2"]   # only for the postgres comparison
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -44,19 +44,19 @@ _Measured on: Windows-11-10.0.26200-SP0, 8 logical CPUs, DuckDB 1.5.5, Python 3.
 
 | question | by_day ms | sorted ms | by_day MB | sorted MB |
 |---|---|---|---|---|
-| How many events failed on one given day? | 26.9 | 9.0 | 0.39 | 0.0 |
-| Top 10 error codes of the week, with their meaning (a join) | 120.4 | 34.1 | 2.09 | 0.0 |
-| How many different devices hit error 1042 this week? | 125.9 | 15.7 | 33.36 | 1.16 |
-| Which model + os combos fail the most, over all days? | 176.6 | 175.6 | 8.58 | 3.7 |
-| Last 100 events of one device in the past 30 days | 301.9 | 50.9 | 80.55 | 8.3 |
-| Failures per connection type, digging inside the json blob | 145.4 | 116.9 | 14.32 | 1.19 |
+| How many events failed on one given day? | 43.1 | 12.0 | 0.26 | 0.0 |
+| Top 10 error codes of the week, with their meaning (a join) | 126.2 | 53.5 | 1.84 | 0.0 |
+| How many different devices hit error 1042 this week? | 180.4 | 24.6 | 33.18 | 0.76 |
+| Which model + os combos fail the most, over all days? | 191.8 | 184.5 | 8.51 | 3.7 |
+| Last 100 events of one device in the past 30 days | 311.7 | 65.5 | 80.32 | 7.91 |
+| Failures per connection type, digging inside the json blob | 163.6 | 131.0 | 13.76 | 1.02 |
 
 #### The daily job: raw csv.gz in, cleaned parquet out
 
 | date | rows in | duplicates dropped | rows out | seconds | csv gz mb | parquet mb |
 |---|---|---|---|---|---|---|
-| 2026-06-01 | 5,005,000 | 5,000 | 5,000,000 | 20.8 | 127.3 | 72.9 |
-| 2026-06-02 | 5,005,000 | 5,000 | 5,000,000 | 16.9 | 127.8 | 72.6 |
+| 2026-07-30 | 5,005,000 | 5,000 | 5,000,000 | 39.1 | 128.2 | 73.1 |
+| 2026-07-31 | 5,005,000 | 5,000 | 5,000,000 | 23.7 | 126.8 | 72.7 |
 
 #### Unique devices: exact vs approximate
 
