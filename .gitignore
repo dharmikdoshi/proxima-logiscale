@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 results/partial/
+# real sample data, never goes to git
+Actual Sample Data/
+# real field names, fields_example.py is the committed stand-in
+bugreports/fields.py

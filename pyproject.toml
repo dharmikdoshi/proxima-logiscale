@@ -5,6 +5,7 @@ description = "Storage layout and query experiments for ~1B event rows"
 requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.1",
+    "psutil>=7.2.2",
     "sqlglot>=25",
 ]
 
